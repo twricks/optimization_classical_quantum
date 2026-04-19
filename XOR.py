@@ -9,9 +9,7 @@ m = 2
 delta = 2
 iterations = 4000
 correlations = [0.25,0.5,0.75,0.8,0.99] #correlation strength of x and y; 0.5 -> independent, <0.5 means negative correlation, >0.5 positive correlation. 
-#each row of counts is an output pair, each column an input pair
-q_counts = np.zeros((4, 4), dtype=int)
-c_counts = np.zeros((4, 4), dtype=int)
+
 
 sim = AerSimulator()
 
@@ -48,9 +46,17 @@ def cBob(y):
 def is_win(a,b,x,y):
     return 1 if (a ^ b) == (x & y) else 0
 
+quantum_rates = []
+classical_rates = []
+advantages = []
+
 for corr in correlations:
     q_wins = 0
     c_wins = 0
+    #each row of counts is an output pair, each column an input pair
+    q_counts = np.zeros((4, 4), dtype=int)
+    c_counts = np.zeros((4, 4), dtype=int)
+
     for _ in range(iterations):
         qc = QuantumCircuit(2, 2)
     
@@ -58,7 +64,7 @@ for corr in correlations:
         qc.h(0)
         qc.cx(0, 1)
 
-        x, y = Referee(correlator)
+        x, y = Referee(corr)
         qAlice(x, qc)
         qBob(y, qc)
 
@@ -86,33 +92,34 @@ for corr in correlations:
 
 quantum_win_rate = q_wins / iterations
 classical_win_rate = c_wins / iterations
+adv = quantum_win_rate - classical_win_rate
 
+quantum_rates.append(quantum_win_rate)
+classical_rates.append(classical_win_rate)
+advantages.append(adv)
+
+plt.figure(figsize=(10,6))
+
+plt.plot(correlations, classical_rates, 'o-', label='Classical',linewidth=2)
+plt.plot(correlations, quantum_rates, 's-', label='Quantum(CHSH)', linewidth=2)
+plt.plot(correlations, advantages, '^-', label = 'Quantum Advantage', linewidth=2, color='coolwarm')
+
+plt.xlabel('Correlation Strength P(x==y)')
+plt.ylabel('Win rate')
+plt.title('Win rates vs. Input correlation')
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.ylim(0.4, 0.95)
+
+for i, corr in enumerate(correlations):
+    plt.text(corr, classical_rates[i] +0.01, f'{classical_rates[i]}',ha='center')
+    plt.text(corr, quantum_rates[i] + 0.01, f'{quantum_rates[i]}', ha='center')
+
+plt.tight_layout()
+plt.show()
 
 
 print(f"Correlation strength: {correlator}")
 print(f"Quantum win rate: {quantum_win_rate}")
 print(f"Classical win rate: {classical_win_rate}")
 print(f"Quantum Advantage: {quantum_win_rate-classical_win_rate}")
-# ---- plotting ----
-#fig, ax = plt.subplots(figsize=(6, 5))
-#im = ax.imshow(q_counts, cmap="coolwarm")
-
-#plt.colorbar(im, ax=ax)
-
-#ax.set_xlabel("Output pair (a,b)")
-#ax.set_ylabel("Input pair (x,y)")
-
-#labels = ["00", "01", "10", "11"]
-#ax.set_xticks(range(4))
-#ax.set_yticks(range(4))
-#ax.set_xticklabels(labels)
-#ax.set_yticklabels(labels)
-
-#for i in range(4):
- #   for j in range(4):
-  #      ax.text(j, i, q_counts[i, j],
-   #             ha="center", va="center",
-    #            color="white" if q_counts[i, j] > np.max(q_counts)/2 else "black")
-
-#plt.tight_layout()
-#plt.show()
