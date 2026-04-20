@@ -10,8 +10,8 @@ iterations = 200
 correlations = [0, 0.5, 0.66, 0.75, 0.99]
 gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
-beta1 = 0 #
-beta2 = 0
+beta1 = 0.0 #
+beta2 = 0.0
 gamma_vals = np.linspace(0, 0.2, 8)
 lambda_vals = np.linspace(0, 0.2, 8)
 
@@ -64,19 +64,15 @@ def cBob(y):
 
 # ========================= UTILITY FUNCTION =========================
 def utility(a, b, x, y, beta1, beta2):
-    """
-    Weighted CHSH utility:
-    - CHSH condition is still (a ⊕ b) == (x ∧ y)
-    - beta1 applies when x == y
-    - beta2 applies when x != y
-    """
-    win = (a ^ b) == (x & y)
-    beta = beta1 if x == y else beta2
+    
+    desired_parity = x ^ y
+    actual_parity = a ^ b
 
-    if win:
-        return 1.0 - beta
+    if desired_parity ==0:
+        return 1.0 if actual_parity==0 else 0.0
     else:
-        return 0.0
+        beta = beta1 if (x ==0 and y==1) else beta2
+        return (1.0-beta) if actual_parity ==1 else 0.0
 
 # ===================== STORAGE =====================
 quantum_util = []
@@ -147,7 +143,7 @@ plt.show()
 
 print("\nPlot generated successfully (expected utility version).")
 
-fixed_corr = 0.5
+fixed_corr = 0.75
 
 for i, lambda_phase in enumerate(lambda_vals):
     for j, gamma in enumerate(gamma_vals):
@@ -217,7 +213,7 @@ plt.colorbar(label='Quantum Advantage')
 
 plt.xlabel('Amplitude Damping γ')
 plt.ylabel('Dephasing λ')
-plt.title('Quantum Advantage Heatmap (Correlation = 0.5)')
+plt.title('Quantum Advantage Heatmap (Correlation = {fixed_corr}')
 
 plt.tight_layout()
 plt.show()
