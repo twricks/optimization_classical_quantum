@@ -6,7 +6,7 @@ from qiskit_aer.noise import NoiseModel, amplitude_damping_error, phase_damping_
 import random
 
 # ========================= PARAMETERS =========================
-iterations = 200
+iterations = 800
 correlations = [0, 0.5, 0.66, 0.75, 0.99]
 gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
@@ -101,13 +101,13 @@ for corr in correlations:
         b = int(bitstring[0])
         a = int(bitstring[1])
 
-        q_reward += utility(a, b, x, y, beta1, beta2)
+        q_reward += utility(a, b, x, y, beta1=beta1, beta2=beta2)
 
         # -------- CLASSICAL --------
         a_c = cAlice(x)
         b_c = cBob(y)
 
-        c_reward += utility(a_c, b_c, x, y, beta1, beta2)
+        c_reward += utility(a_c, b_c, x, y, beta1=beta1, beta2=beta2)
 
     q_util = q_reward / iterations
     c_util = c_reward / iterations
@@ -184,13 +184,13 @@ for i, lambda_phase in enumerate(lambda_vals):
             b = int(bitstring[0])
             a = int(bitstring[1])
 
-            q_reward += utility(a, b, x, y, beta1, beta2)
+            q_reward += utility(a, b, x, y, beta1=beta1, beta2=beta2)
 
             # --- classical ---
             a_c = cAlice(x)
             b_c = cBob(y)
 
-            c_reward += utility(a_c, b_c, x, y, beta1, beta2)
+            c_reward += utility(a_c, b_c, x, y, beta1=beta1, beta2=beta2)
 
         q_util = q_reward / iterations
         c_util = c_reward / iterations
