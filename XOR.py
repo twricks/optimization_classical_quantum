@@ -7,13 +7,13 @@ import random
 
 # ========================= PARAMETERS =========================
 iterations = 800
-correlations = [0, 0.5, 0.66, 0.75, 0.99]
+correlations = [0, 0.25, 0.5, 0.66, 0.75, 0.8, 1]
 gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
 beta1 = 0.0 #
 beta2 = 0.0
-gamma_vals = np.linspace(0, 0.2, 8)
-lambda_vals = np.linspace(0, 0.2, 8)
+gamma_vals = np.linspace(0, 0.2, 25)
+lambda_vals = np.linspace(0, 0.2, 25)
 
 heatmap = np.zeros((len(lambda_vals), len(gamma_vals)))
 
@@ -65,7 +65,7 @@ def cBob(y):
 # ========================= UTILITY FUNCTION =========================
 def utility(a, b, x, y, beta1, beta2):
     
-    desired_parity = x ^ y
+    desired_parity = x & y
     actual_parity = a ^ b
 
     if desired_parity ==0:
@@ -126,7 +126,10 @@ plt.plot(correlations, advantage, '^-', label='Quantum advantage', linewidth=2, 
 
 plt.xlabel('Correlation Strength  P(x == y)')
 plt.ylabel('Expected Utility')
-plt.title('Generalized CHSH Game: Expected Utility vs Input Correlation')
+plt.title(
+    f'Generalized CHSH Game: Expected Utility vs Input Correlation \n'
+    f'$\\beta_1 = {beta1}, \\beta_2 = {beta2}, iterations = {iterations}$.'
+)
 plt.grid(True, alpha=0.3)
 plt.legend()
 plt.ylim(0.0, 1.0)
@@ -213,7 +216,7 @@ plt.colorbar(label='Quantum Advantage')
 
 plt.xlabel('Amplitude Damping γ')
 plt.ylabel('Dephasing λ')
-plt.title('Quantum Advantage Heatmap (Correlation = {fixed_corr}')
+plt.title(f'Quantum Advantage Heatmap (Correlation = {fixed_corr})')
 
 plt.tight_layout()
 plt.show()
@@ -234,7 +237,7 @@ plt.colorbar(cs, label='Quantum Advantage')
 
 plt.xlabel('Amplitude Damping γ')
 plt.ylabel('Dephasing λ')
-plt.title('Quantum Advantage Contours (Correlation = 0.5)')
+plt.title(f'Quantum Advantage Contours (Correlation = {fixed_corr})')
 
 plt.tight_layout()
 plt.show()
