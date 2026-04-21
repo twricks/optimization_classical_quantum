@@ -13,8 +13,8 @@ gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
 beta1 = 0.0 #
 beta2 = 0.0
-gamma_vals = np.linspace(0, 0.25, 30)
-lambda_vals = np.linspace(0, 0.25, 30)
+gamma_vals = np.linspace(0, 0.20, 10)
+lambda_vals = np.linspace(0, 0.2, 10)
 
 heatmap = np.zeros((len(lambda_vals), len(gamma_vals)))
 
@@ -80,6 +80,17 @@ quantum_util = []
 classical_util = []
 advantage = []
 
+# ===================== FIDELITY ======================
+
+def singlet_fidelity(sim, shots=2000):
+    qc_fid = QuantumCircuit(2,2)
+    qc_fid.h(0)
+    qc_fid.cx(0,1)
+    qc_fid.measure([0,1],[0,1])
+    result = sim.run(qc_fid, shots=shots).result()
+    counts = result.get_counts()
+    f_singlet = (counts.get('01',0) + counts.get('10',0))/shots
+    return 1.0 -f_singlet #epsilon_s in the paper
 # ===================== MAIN LOOP =====================
 for corr in correlations:
     q_reward = 0.0
@@ -145,7 +156,7 @@ for i, corr in enumerate(correlations):
 plt.tight_layout()
 plt.show()
 
-print("\nPlot generated successfully (expected utility version).")
+#print("\nPlot generated successfully (expected utility version).")
 
 fixed_corr = 0.5
 
@@ -167,7 +178,9 @@ for i, lambda_phase in enumerate(lambda_vals):
         )
 
         sim = AerSimulator(noise_model=noise_model)
-
+        eps_s = singlet_fidelity(sim, shots=2000)
+        eps_meas =0.0 
+        eps_combined = 1 - (1-4*eps_s/3) * (1-eps_meas)**2
         q_reward = 0.0
         c_reward = 0.0
 
