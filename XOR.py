@@ -1,19 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, amplitude_damping_error, phase_damping_error
 import random
 
 # ========================= PARAMETERS =========================
-iterations = 800
+iterations = 4000
 correlations = [0, 0.25, 0.5, 0.66, 0.75, 0.8, 1]
 gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
 beta1 = 0.0 #
 beta2 = 0.0
-gamma_vals = np.linspace(0, 0.2, 25)
-lambda_vals = np.linspace(0, 0.2, 25)
+gamma_vals = np.linspace(0, 0.25, 30)
+lambda_vals = np.linspace(0, 0.25, 30)
 
 heatmap = np.zeros((len(lambda_vals), len(gamma_vals)))
 
@@ -146,7 +147,7 @@ plt.show()
 
 print("\nPlot generated successfully (expected utility version).")
 
-fixed_corr = 0.75
+fixed_corr = 0.5
 
 for i, lambda_phase in enumerate(lambda_vals):
     for j, gamma in enumerate(gamma_vals):
@@ -201,6 +202,9 @@ for i, lambda_phase in enumerate(lambda_vals):
         heatmap[i, j] = q_util - c_util
         heatmap[i, j] = max(heatmap[i, j], 0.0)
 
+heatmap = np.clip(heatmap, 1e-3, None)
+
+# ===================== HEATMAP PLOT =====================
 plt.figure(figsize=(8, 6))
 
 plt.imshow(
@@ -209,11 +213,10 @@ plt.imshow(
     extent=[gamma_vals[0], gamma_vals[-1], lambda_vals[0], lambda_vals[-1]],
     aspect='auto',
     cmap='coolwarm',
-    vmin=0  # important: locks zero as baseline color
+    norm=LogNorm(vmin=1e-3, vmax=heatmap.max())
 )
 
-plt.colorbar(label='Quantum Advantage')
-
+plt.colorbar(label='Quantum Advantage (log scale)')
 plt.xlabel('Amplitude Damping γ')
 plt.ylabel('Dephasing λ')
 plt.title(f'Quantum Advantage Heatmap (Correlation = {fixed_corr})')
@@ -221,20 +224,19 @@ plt.title(f'Quantum Advantage Heatmap (Correlation = {fixed_corr})')
 plt.tight_layout()
 plt.show()
 
+# ===================== CONTOUR =====================
 plt.figure(figsize=(8, 6))
 
 G, L = np.meshgrid(gamma_vals, lambda_vals)
 
 cs = plt.contour(
     G, L, heatmap,
-    levels=12,
+    levels=np.logspace(-3, np.log10(heatmap.max()), 12),
+    norm=LogNorm(vmin=1e-3, vmax=heatmap.max()),
     cmap='coolwarm'
 )
 
-#plt.clabel(cs, inline=True, fontsize=8)
-
-plt.colorbar(cs, label='Quantum Advantage')
-
+plt.colorbar(cs, label='Quantum Advantage (log scale)')
 plt.xlabel('Amplitude Damping γ')
 plt.ylabel('Dephasing λ')
 plt.title(f'Quantum Advantage Contours (Correlation = {fixed_corr})')
