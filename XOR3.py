@@ -258,16 +258,48 @@ plt.tight_layout()
 plt.show()
 
 # ===================== NEW FIGURE: Quantum Advantage vs. Combined Infidelity ε (Fig. 2c, β=0 only) =====================
-# Correct analytic CHSH line from the paper (Eq. 36)
+
+# ===================== HELPER FUNCTION (uses global iterations) =====================
+def compute_advantage_and_eps(noise_model, shots_fid=2000):
+    sim = AerSimulator(noise_model=noise_model)
+   
+    eps_s = singlet_fidelity(sim, shots=shots_fid)
+    eps_meas = 0.0
+    eps_combined = 1 - (1 - 4*eps_s/3) * (1 - eps_meas)**2   # paper Eq. (30)
+   
+    q_reward = 0.0
+    c_reward = 0.0
+    for _ in range(iterations):          # ← uses your global iterations variable
+        x, y = Referee(0.5)
+        qc = QuantumCircuit(2, 2)
+        qc.h(0)
+        qc.cx(0, 1)
+        qAlice(x, qc)
+        qBob(y, qc)
+        result = sim.run(qc, shots=1).result()
+        bitstring = next(iter(result.get_counts(qc)))
+        b = int(bitstring[0])
+        a = int(bitstring[1])
+        q_reward += utility(a, b, x, y, beta1=beta1, beta2=beta2)
+        a_c = cAlice(x)
+        b_c = cBob(y)
+        c_reward += utility(a_c, b_c, x, y, beta1=beta1, beta2=beta2)
+   
+    advantage = (q_reward - c_reward) / iterations
+    return eps_combined, advantage
+
+
+# ===================== ANALYTIC WERNER LINE (paper Eq. 36) =====================
 def paper_advantage(eps):
     return ((1 - eps) * np.sqrt(2) - 1) / 4
 
-# ===================== SWEEPS (your existing code, unchanged) =====================
+
+# ===================== SWEEPS =====================
 n_points = 12
 eps_paper = np.linspace(0, 0.35, 200)
 adv_paper = paper_advantage(eps_paper)
 
-# Pure dephasing only (γ=0, vary λ)
+# Pure dephasing only
 lambda_sweep = np.linspace(0, 0.25, n_points)
 eps_deph, adv_deph = [], []
 for lam in lambda_sweep:
@@ -275,11 +307,11 @@ for lam in lambda_sweep:
     phase_error = phase_damping_error(lam)
     noise_model.add_all_qubit_quantum_error(phase_error, ['h','ry','measure'])
     noise_model.add_all_qubit_quantum_error(phase_error.tensor(phase_error), ['cx'])
-    eps, adv = compute_advantage_and_eps(noise_model, iterations=2000)
+    eps, adv = compute_advantage_and_eps(noise_model)   # ← no extra arguments needed
     eps_deph.append(eps)
     adv_deph.append(adv)
 
-# Pure amplitude damping only (λ=0, vary γ)
+# Pure amplitude damping only
 gamma_sweep = np.linspace(0, 0.25, n_points)
 eps_amp, adv_amp = [], []
 for gam in gamma_sweep:
@@ -287,20 +319,23 @@ for gam in gamma_sweep:
     amp_error = amplitude_damping_error(gam)
     noise_model.add_all_qubit_quantum_error(amp_error, ['h','ry','measure'])
     noise_model.add_all_qubit_quantum_error(amp_error.tensor(amp_error), ['cx'])
-    eps, adv = compute_advantage_and_eps(noise_model, iterations=2000)
+    eps, adv = compute_advantage_and_eps(noise_model)   # ← no extra arguments needed
     eps_amp.append(eps)
     adv_amp.append(adv)
 
+
 # ===================== PLOT =====================
 plt.figure(figsize=(9, 6))
-plt.plot(eps_paper, adv_paper, 'r--', linewidth=3, label='Paper: isotropic Werner noise (analytic, Eq. 36)')
-plt.plot(eps_deph, adv_deph, 'o-', color='blue', linewidth=2, markersize=6, label='Simulation: pure dephasing (λ only)')
-plt.plot(eps_amp, adv_amp, 's-', color='green', linewidth=2, markersize=6, label='Simulation: pure amplitude damping (γ only)')
+plt.plot(eps_paper, adv_paper, 'r--', linewidth=3, label='Paper: isotropic Werner noise (analytic)')
+plt.plot(eps_deph, adv_deph, 'o-', color='blue', linewidth=2, markersize=6,
+         label='Simulation: pure dephasing (λ only)')
+plt.plot(eps_amp, adv_amp, 's-', color='green', linewidth=2, markersize=6,
+         label='Simulation: pure amplitude damping (γ only)')
 
 plt.xlabel(r'Combined infidelity $\varepsilon$')
 plt.ylabel(r'Quantum advantage $\Delta\omega$')
 plt.title(r'Quantum advantage vs. $\varepsilon$ — CHSH ($\beta_1=\beta_2=0$, $P(x,y)=1/4$)')
-plt.yscale('log')                    # ← this creates the exact downward curves from the paper
+plt.yscale('log')
 plt.ylim(1e-4, 0.12)
 plt.xlim(0, 0.35)
 plt.grid(True, which='both', alpha=0.3)
@@ -308,5 +343,5 @@ plt.legend(fontsize=11)
 plt.tight_layout()
 plt.show()
 
-print("✅ Fig. 2(c) reproduction complete (β=0 only, log scale, correct analytic line).")
-print(f"Paper isotropic threshold (Δω=0): ε ≈ {1-1/np.sqrt(2):.4f}")
+print("✅ Fig. 2(c) reproduction complete (uses your global iterations).")
+print(f"Paper isotropic threshold (Δω = 0): ε ≈ {1-1/np.sqrt(2):.4f}")
