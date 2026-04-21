@@ -7,14 +7,14 @@ from qiskit_aer.noise import NoiseModel, amplitude_damping_error, phase_damping_
 import random
 
 # ========================= PARAMETERS =========================
-iterations = 4000
+iterations = 400
 correlations = [0, 0.25, 0.5, 0.66, 0.75, 0.8, 1]
 gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
 beta1 = 0.0 #
 beta2 = 0.0
-gamma_vals = np.linspace(0, 0.20, 10)
-lambda_vals = np.linspace(0, 0.2, 10)
+gamma_vals = np.linspace(0, 0.2, 3)
+lambda_vals = np.linspace(0, 0.2, 3)
 
 heatmap = np.zeros((len(lambda_vals), len(gamma_vals)))
 
@@ -82,8 +82,9 @@ advantage = []
 
 # ===================== FIDELITY ======================
 
-def singlet_fidelity(sim, shots=2000):
+def singlet_fidelity(sim, shots=1000):
     qc_fid = QuantumCircuit(2,2)
+    qc_fid.x(0)
     qc_fid.h(0)
     qc_fid.cx(0,1)
     qc_fid.measure([0,1],[0,1])
@@ -178,7 +179,7 @@ for i, lambda_phase in enumerate(lambda_vals):
         )
 
         sim = AerSimulator(noise_model=noise_model)
-        eps_s = singlet_fidelity(sim, shots=2000)
+        eps_s = singlet_fidelity(sim, shots=1000)
         eps_meas =0.0 
         eps_combined = 1 - (1-4*eps_s/3) * (1-eps_meas)**2
         q_reward = 0.0
@@ -260,7 +261,7 @@ plt.show()
 # ===================== NEW FIGURE: Quantum Advantage vs. Combined Infidelity ε (Fig. 2c, β=0 only) =====================
 
 # ===================== HELPER FUNCTION (uses global iterations) =====================
-def compute_advantage_and_eps(noise_model, shots_fid=2000):
+def compute_advantage_and_eps(noise_model, shots_fid=1000):
     sim = AerSimulator(noise_model=noise_model)
    
     eps_s = singlet_fidelity(sim, shots=shots_fid)
@@ -300,7 +301,7 @@ eps_paper = np.linspace(0, 0.35, 200)
 adv_paper = paper_advantage(eps_paper)
 
 # Pure dephasing only
-lambda_sweep = np.linspace(0, 0.25, n_points)
+lambda_sweep = np.linspace(0, 0.06, n_points)
 eps_deph, adv_deph = [], []
 for lam in lambda_sweep:
     noise_model = NoiseModel()
@@ -312,7 +313,7 @@ for lam in lambda_sweep:
     adv_deph.append(adv)
 
 # Pure amplitude damping only
-gamma_sweep = np.linspace(0, 0.25, n_points)
+gamma_sweep = np.linspace(0, 0.06, n_points)
 eps_amp, adv_amp = [], []
 for gam in gamma_sweep:
     noise_model = NoiseModel()
@@ -325,6 +326,8 @@ for gam in gamma_sweep:
 
 
 # ===================== PLOT =====================
+print("debug: lambda sweep -> epsilon range", [f"{e:.4f}" for e in eps_deph])
+print("debug: lambda sweep -> epsilon range", [f"{e:.4f}" for e in eps_amp])
 plt.figure(figsize=(9, 6))
 plt.plot(eps_paper, adv_paper, 'r--', linewidth=3, label='Paper: isotropic Werner noise (analytic)')
 plt.plot(eps_deph, adv_deph, 'o-', color='blue', linewidth=2, markersize=6,
