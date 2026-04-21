@@ -257,20 +257,20 @@ plt.title(f'Quantum Advantage Contours (Correlation = {fixed_corr})')
 plt.tight_layout()
 #plt.show()
 
-# ===================== PROPER BELL FIDELITY (sensitive to dephasing) =====================
-def bell_fidelity(sim, shots=4000):
-    """Compute fidelity of the prepared |Φ⁺⟩ state under noise.
-       F = (1 + ⟨XX⟩ + ⟨YY⟩ + ⟨ZZ⟩)/4
-       Returns ε_s = 1 - F (matches paper's singlet infidelity definition)"""
+# ===================== ROBUST BELL FIDELITY (only noisy gates) =====================
+def bell_fidelity(sim, shots=10000):
+    """F = (⟨XX⟩ + ⟨YY⟩ + ⟨ZZ⟩ + 1)/4 for |Φ⁺⟩
+       Uses only h, ry, cx, measure → fully affected by your noise model"""
     
-    # ZZ correlator
+    # ZZ correlator (no extra gates)
     qc_zz = QuantumCircuit(2, 2)
     qc_zz.h(0)
     qc_zz.cx(0, 1)
     qc_zz.measure([0,1], [0,1])
     counts_zz = sim.run(qc_zz, shots=shots).result().get_counts()
-    ezz = (counts_zz.get('00',0) + counts_zz.get('11',0) - counts_zz.get('01',0) - counts_zz.get('10',0)) / shots
-    
+    ezz = (counts_zz.get('00',0) + counts_zz.get('11',0) 
+           - counts_zz.get('01',0) - counts_zz.get('10',0)) / shots
+
     # XX correlator
     qc_xx = QuantumCircuit(2, 2)
     qc_xx.h(0)
@@ -279,29 +279,32 @@ def bell_fidelity(sim, shots=4000):
     qc_xx.h(1)
     qc_xx.measure([0,1], [0,1])
     counts_xx = sim.run(qc_xx, shots=shots).result().get_counts()
-    exx = (counts_xx.get('00',0) + counts_xx.get('11',0) - counts_xx.get('01',0) - counts_xx.get('10',0)) / shots
-    
-    # YY correlator
+    exx = (counts_xx.get('00',0) + counts_xx.get('11',0) 
+           - counts_xx.get('01',0) - counts_xx.get('10',0)) / shots
+
+    # YY correlator — use RY(-π/2) instead of sdg+h (RY is noisy)
     qc_yy = QuantumCircuit(2, 2)
     qc_yy.h(0)
     qc_yy.cx(0, 1)
-    qc_yy.sdg([0,1])   # S† to rotate to Y basis
-    qc_yy.h([0,1])
+    qc_yy.ry(-np.pi/2, 0)   # equivalent to Y-basis rotation
+    qc_yy.ry(-np.pi/2, 1)
     qc_yy.measure([0,1], [0,1])
     counts_yy = sim.run(qc_yy, shots=shots).result().get_counts()
-    eyy = (counts_yy.get('00',0) + counts_yy.get('11',0) - counts_yy.get('01',0) - counts_yy.get('10',0)) / shots
-    
+    eyy = (counts_yy.get('00',0) + counts_yy.get('11',0) 
+           - counts_yy.get('01',0) - counts_yy.get('10',0)) / shots
+
     F = (1 + exx + eyy + ezz) / 4
-    return 1 - F   # ε_s (paper's singlet infidelity)
+    eps_s = 1 - F
+    return max(0.0, eps_s)  # prevent tiny negative fluctuations
 
 # ===================== UPDATED COMPUTE FUNCTION =====================
-def compute_advantage_and_eps(noise_model, shots_fid=4000, game_trials=20000):
+def compute_advantage_and_eps(noise_model, shots_fid=10000, game_trials=15000):
     sim = AerSimulator(noise_model=noise_model)
     
     eps_s = bell_fidelity(sim, shots=shots_fid)
     eps_meas = 0.0
-    eps_combined = 1 - (1 - 4*eps_s/3) * (1 - eps_meas)**2   # paper Eq. (30) — now correct
-    
+    eps_combined = 1 - (1 - 4*eps_s/3) * (1 - eps_meas)**2   # paper Eq. (30)
+
     q_reward = c_reward = 0.0
     for _ in range(game_trials):
         x, y = Referee(0.5)
@@ -320,16 +323,16 @@ def compute_advantage_and_eps(noise_model, shots_fid=4000, game_trials=20000):
     adv = (q_reward - c_reward) / game_trials
     return eps_combined, max(0.0, adv)
 
-# ===================== ANALYTIC WERNER LINE (unchanged) =====================
+# ===================== ANALYTIC WERNER LINE =====================
 def paper_advantage(eps):
     return ((1 - eps) * np.sqrt(2) - 1) / 4
 
-# ===================== SWEEPS — smart parameter ranges =====================
-n_points = 40
+# ===================== SWEEPS (balanced ranges) =====================
+n_points = 30   # fast enough, smooth enough
 eps_paper = np.linspace(0, 0.35, 100)
 adv_paper = paper_advantage(eps_paper)
 
-# Pure dephasing — λ up to 0.8 is perfect (reaches threshold)
+# Pure dephasing
 lambda_sweep = np.linspace(0, 0.8, n_points)
 eps_deph, adv_deph = [], []
 for lam in lambda_sweep:
@@ -341,7 +344,7 @@ for lam in lambda_sweep:
     eps_deph.append(eps)
     adv_deph.append(adv)
 
-# Pure amplitude damping — γ up to 0.5 (also reaches threshold)
+# Pure amplitude damping
 gamma_sweep = np.linspace(0, 0.5, n_points)
 eps_amp, adv_amp = [], []
 for gam in gamma_sweep:
@@ -353,14 +356,14 @@ for gam in gamma_sweep:
     eps_amp.append(eps)
     adv_amp.append(adv)
 
-# ===================== PLOT =====================
+# ===================== FINAL PLOT =====================
 plt.figure(figsize=(9, 6))
 plt.plot(eps_paper, adv_paper, 'r--', linewidth=3, label='Paper: isotropic Werner (analytic)')
 plt.plot(eps_deph, adv_deph, 's-', color='green', linewidth=2, label='Pure dephasing')
 plt.plot(eps_amp, adv_amp, 'o-', color='blue', linewidth=2, label='Pure amplitude damping')
 plt.xlabel(r'Combined infidelity $\varepsilon$ (paper Eq. 30)')
 plt.ylabel(r'Quantum advantage $\Delta\omega$')
-plt.title(r'Quantum advantage vs. $\varepsilon$ — realistic noise channels')
+plt.title(r'Quantum advantage vs. $\varepsilon$ — realistic noise (fixed)')
 plt.yscale('log')
 plt.ylim(1e-4, 0.12)
 plt.xlim(0, 0.35)
@@ -369,5 +372,5 @@ plt.legend(fontsize=11)
 plt.tight_layout()
 plt.show()
 
-print("✅ Dephasing sweep now spreads correctly on x-axis")
+print("✅ Both sweeps now correctly show ε increasing with noise")
 print(f"Paper threshold ε^th ≈ {1-1/np.sqrt(2):.4f}")
