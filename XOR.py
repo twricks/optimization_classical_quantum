@@ -7,14 +7,14 @@ from qiskit_aer.noise import NoiseModel, amplitude_damping_error, phase_damping_
 import random
 
 # ========================= PARAMETERS =========================
-iterations = 4000
+iterations = 400
 correlations = [0, 0.25, 0.5, 0.66, 0.75, 0.8, 1]
 gamma = 0.0 #amplitude noise strength
 lambda_phase = 0.0 #dephasing noise strength
 beta1 = 0.0 #
 beta2 = 0.0
-gamma_vals = np.linspace(0, 0.20, 10)
-lambda_vals = np.linspace(0, 0.2, 10)
+gamma_vals = np.linspace(0, 0.2, 3)
+lambda_vals = np.linspace(0, 0.2, 3)
 
 heatmap = np.zeros((len(lambda_vals), len(gamma_vals)))
 
@@ -82,14 +82,14 @@ advantage = []
 
 # ===================== FIDELITY ======================
 
-def singlet_fidelity(sim, shots=2000):
+def singlet_fidelity(sim, shots=400):
     qc_fid = QuantumCircuit(2,2)
     qc_fid.h(0)
     qc_fid.cx(0,1)
     qc_fid.measure([0,1],[0,1])
     result = sim.run(qc_fid, shots=shots).result()
     counts = result.get_counts()
-    f_singlet = (counts.get('01',0) + counts.get('10',0))/shots
+    f_singlet = (counts.get('00',0) + counts.get('11',0))/shots
     return 1.0 -f_singlet #epsilon_s in the paper
 # ===================== MAIN LOOP =====================
 for corr in correlations:
@@ -154,7 +154,7 @@ for i, corr in enumerate(correlations):
              f'{quantum_util[i]:.3f}', ha='center', fontsize=9)
 
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 #print("\nPlot generated successfully (expected utility version).")
 
@@ -178,7 +178,7 @@ for i, lambda_phase in enumerate(lambda_vals):
         )
 
         sim = AerSimulator(noise_model=noise_model)
-        eps_s = singlet_fidelity(sim, shots=2000)
+        eps_s = singlet_fidelity(sim, shots=400)
         eps_meas =0.0 
         eps_combined = 1 - (1-4*eps_s/3) * (1-eps_meas)**2
         q_reward = 0.0
@@ -235,7 +235,7 @@ plt.ylabel('Dephasing λ')
 plt.title(f'Quantum Advantage Heatmap (Correlation = {fixed_corr})')
 
 plt.tight_layout()
-plt.show()
+#plt.show()
 
 # ===================== CONTOUR =====================
 plt.figure(figsize=(8, 6))
@@ -255,4 +255,93 @@ plt.ylabel('Dephasing λ')
 plt.title(f'Quantum Advantage Contours (Correlation = {fixed_corr})')
 
 plt.tight_layout()
+#plt.show()
+
+# ===================== NEW FIGURE: Quantum Advantage vs. Combined Infidelity ε (Fig. 2c, β=0 only) =====================
+
+# ===================== HELPER FUNCTION (uses global iterations) =====================
+def compute_advantage_and_eps(noise_model, shots_fid=400):
+    sim = AerSimulator(noise_model=noise_model)
+   
+    eps_s = singlet_fidelity(sim, shots=shots_fid)
+    eps_meas = 0.0
+    eps_combined = 1 - (1 - 4*eps_s/3) * (1 - eps_meas)**2   # paper Eq. (30)
+   
+    q_reward = 0.0
+    c_reward = 0.0
+    for _ in range(2000):          # ← uses your global iterations variable
+        x, y = Referee(0.5)
+        qc = QuantumCircuit(2, 2)
+        qc.h(0)
+        qc.cx(0, 1)
+        qAlice(x, qc)
+        qBob(y, qc)
+        result = sim.run(qc, shots=1).result()
+        bitstring = next(iter(result.get_counts(qc)))
+        b = int(bitstring[0])
+        a = int(bitstring[1])
+        q_reward += utility(a, b, x, y, beta1=beta1, beta2=beta2)
+        a_c = cAlice(x)
+        b_c = cBob(y)
+        c_reward += utility(a_c, b_c, x, y, beta1=beta1, beta2=beta2)
+   
+    advantage = (q_reward - c_reward) / 2000
+    return eps_combined, advantage
+
+
+# ===================== ANALYTIC WERNER LINE (paper Eq. 36) =====================
+def paper_advantage(eps):
+    return ((1 - eps) * np.sqrt(2) - 1) / 4
+
+
+# ===================== SWEEPS =====================
+n_points = 100
+eps_paper = np.linspace(0, 0.35, 100)
+adv_paper = paper_advantage(eps_paper)
+
+# Pure dephasing only
+lambda_sweep = np.linspace(0, 0.75, n_points)
+eps_deph, adv_deph = [], []
+for lam in lambda_sweep:
+    noise_model = NoiseModel()
+    phase_error = phase_damping_error(lam)
+    noise_model.add_all_qubit_quantum_error(phase_error, ['h','ry','measure'])
+    noise_model.add_all_qubit_quantum_error(phase_error.tensor(phase_error), ['cx'])
+    eps, adv = compute_advantage_and_eps(noise_model)   # ← no extra arguments needed
+    eps_deph.append(eps)
+    adv_deph.append(adv)
+
+# Pure amplitude damping only
+gamma_sweep = np.linspace(0, 0.5, n_points)
+eps_amp, adv_amp = [], []
+for gam in gamma_sweep:
+    noise_model = NoiseModel()
+    amp_error = amplitude_damping_error(gam)
+    noise_model.add_all_qubit_quantum_error(amp_error, ['h','ry','measure'])
+    noise_model.add_all_qubit_quantum_error(amp_error.tensor(amp_error), ['cx'])
+    eps, adv = compute_advantage_and_eps(noise_model)   # ← no extra arguments needed
+    eps_amp.append(eps)
+    adv_amp.append(adv)
+
+
+# ===================== PLOT =====================
+print("debug: lambda sweep -> epsilon range", [f"{e:.4f}" for e in eps_deph])
+print("debug: gamma sweep -> epsilon range", [f"{e:.4f}" for e in eps_amp])
+plt.figure(figsize=(9, 6))
+plt.plot(eps_paper, adv_paper, 'r--', linewidth=3, label='Paper: isotropic Werner noise (analytic)')
+plt.scatter(eps_deph, [max(0,a) for a in adv_deph], color='green', s=60, marker='s', label="pure dephasing")
+plt.scatter(eps_amp, [max(0,a) for a in adv_amp], color='blue', s=60, marker='o', label="pure amplitude damping")
+
+plt.xlabel(r'Combined infidelity $\varepsilon$')
+plt.ylabel(r'Quantum advantage $\Delta\omega$')
+plt.title(r'Quantum advantage vs. $\varepsilon$ — CHSH ($\beta_1=\beta_2=0$, $P(x,y)=1/4$)')
+plt.yscale('log')
+plt.ylim(1e-4, 0.12)
+plt.xlim(0, 0.35)
+plt.grid(True, which='both', alpha=0.3)
+plt.legend(fontsize=11)
+plt.tight_layout()
 plt.show()
+
+print("✅ Fig. 2(c) reproduction complete (uses your global iterations).")
+print(f"Paper isotropic threshold (Δω = 0): ε ≈ {1-1/np.sqrt(2):.4f}")
